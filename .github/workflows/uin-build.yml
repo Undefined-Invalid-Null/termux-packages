@@ -42,12 +42,13 @@ jobs:
           export TERMUX_INSTALL_DEPS=true
           ./build-package.sh -a aarch64 readline
 
-      - name: Build target package
+      - name: Build bash with extra libs
         run: |
           export NDK=/home/builder/lib/android-ndk-r29
           export ANDROID_HOME=/home/builder/lib/android-sdk-9123335
           export TERMUX_INSTALL_DEPS=true
-          ./build-package.sh -a aarch64 ${{ github.event.inputs.package || 'bash' }}
+          export LDFLAGS="-L$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android -lc"
+          ./build-package.sh -a aarch64 bash
 
       - name: Upload artifacts
         if: success()
