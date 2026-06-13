@@ -1,9 +1,15 @@
-name: UIN.Tool Build (Debug)
+name: UIN.Tool Build
 
 on:
   push:
     branches: [ master ]
   workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package to build'
+        required: false
+        default: 'bash'
+        type: string
 
 jobs:
   build:
@@ -11,37 +17,64 @@ jobs:
     container:
       image: ghcr.io/termux/package-builder
       options: --user root --privileged
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [aarch64]
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup environment
+      - name: Configure
         run: |
           sed -i 's/com.termux/com.UIN.Tool/g' scripts/properties.sh
           sed -i 's|/github/home/lib/android-ndk-r29|/home/builder/lib/android-ndk-r29|g' scripts/properties.sh
           echo "export TERMUX_INSTALL_DEPS=true" >> scripts/properties.sh
+          
+          # 显示修改后的配置
+          echo "=== Properties after modification ==="
+          grep -E "PACKAGE|NDK" scripts/properties.sh | head -10
 
-      - name: Build with debug
+      - name: Build
         run: |
           export NDK=/home/builder/lib/android-ndk-r29
           export ANDROID_HOME=/home/builder/lib/android-sdk-9123335
           export TERMUX_INSTALL_DEPS=true
-          ./build-package.sh -a aarch64 bash 2>&1 | tee build.log
+          
+          echo "=== Starting build ==="
+          ./build-package.sh -a ${{ matrix.arch }} ${{ github.event.inputs.package || 'bash' }}
+          
+          echo "=== Build exit code: $? ==="
+          echo "=== Checking output directory ==="
+          ls -la output/ 2>/dev/null || echo "No output directory"
+          ls -la /github/home/.termux-build/ 2>/dev/null | head -20
 
-      - name: Upload config.log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-logs
-          path: |
-            /github/home/.termux-build/bash/src/config.log
-            build.log
-            /github/home/.termux-build/bash/src/config.status
-          retention-days: 7
+      - name: Find debs anywhere
+        if: always()
+        run: |
+          echo "=== Searching for .deb files ==="
+          find / -name "*.deb" 2>/dev/null | head -20
+          echo "=== Searching for output directories ==="
+          find /github/home -type d -name "output" 2>/dev/null | head -10
+          find /home/builder -type d -name "output" 2>/dev/null | head -10
 
       - name: Upload artifacts
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: debs
-          path: output/
+          name: uin-tool-${{ matrix.arch }}
+          path: |
+            output/
+            /github/home/.termux-build/*/build/*.deb
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Upload debug info
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-info
+          path: |
+            /github/home/.termux-build/bash/src/config.log
+            /github/home/.termux-build/bash/src/config.status
+          retention-days: 7
