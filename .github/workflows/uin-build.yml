@@ -23,19 +23,21 @@ jobs:
 
       - name: Configure for UIN.Tool
         run: |
-          # 修改包名
           sed -i 's/com.termux/com.UIN.Tool/g' scripts/properties.sh
-          
-          # 修正 NDK 路径
           sed -i 's|/github/home/lib/android-ndk-r29|/home/builder/lib/android-ndk-r29|g' scripts/properties.sh
-          
-          # 启用依赖下载
           echo "export TERMUX_INSTALL_DEPS=true" >> scripts/properties.sh
-          
-          # 移除有问题的链接标志
           sed -i 's/-Wl,--no-as-needed,-landroid-support,--as-needed//g' scripts/build/toolchain/termux_setup_toolchain_29.sh 2>/dev/null || true
 
-      - name: Build package
+      - name: Build dependencies first
+        run: |
+          export NDK=/home/builder/lib/android-ndk-r29
+          export ANDROID_HOME=/home/builder/lib/android-sdk-9123335
+          export TERMUX_INSTALL_DEPS=true
+          
+          # 先构建 readline (bash 的依赖)
+          ./build-package.sh -a aarch64 readline
+
+      - name: Build target package
         run: |
           export NDK=/home/builder/lib/android-ndk-r29
           export ANDROID_HOME=/home/builder/lib/android-sdk-9123335
