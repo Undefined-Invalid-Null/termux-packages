@@ -23,10 +23,20 @@ jobs:
 
       - name: Configure UIN.Tool
         run: |
+          # 修改包名
           sed -i 's/com.termux/com.UIN.Tool/g' scripts/properties.sh
+          
+          # 修正 NDK 路径
           sed -i 's|/github/home/lib/android-ndk-r29|/home/builder/lib/android-ndk-r29|g' scripts/properties.sh
+          
+          # 启用依赖下载
           echo "export TERMUX_INSTALL_DEPS=true" >> scripts/properties.sh
+          
+          # 移除有问题的链接标志
           sed -i 's/-Wl,--no-as-needed,-landroid-support,--as-needed//g' scripts/build/toolchain/termux_setup_toolchain_29.sh 2>/dev/null || true
+          
+          # 添加 -lc 解决 mblen 问题
+          sed -i 's/export LDFLAGS="\([^"]*\)"/export LDFLAGS="\1 -lc"/g' scripts/build/toolchain/termux_setup_toolchain_29.sh 2>/dev/null || true
 
       - name: Build ncurses
         run: |

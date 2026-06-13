@@ -70,6 +70,9 @@ termux_step_post_make_install() {
 		"$TERMUX_PKG_BUILDER_DIR/etc-bash.bashrc" > "$TERMUX_PREFIX/etc/bash.bashrc"
 }
 
-
 # Fix mblen linking issue for UIN.Tool
-export LDFLAGS="$LDFLAGS -lc"
+if [ -z "${LDFLAGS+x}" ]; then
+    export LDFLAGS="-lc"
+else
+    export LDFLAGS="$LDFLAGS -lc"
+fi
