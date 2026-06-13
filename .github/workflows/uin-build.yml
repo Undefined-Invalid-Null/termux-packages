@@ -1,0 +1,33 @@
+name: UIN.Tool Build
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: ghcr.io/termux/package-builder
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Change package name to com.UIN.Tool
+        run: |
+          sed -i 's/TERMUX_APP__PACKAGE_NAME="com.termux"/TERMUX_APP__PACKAGE_NAME="com.UIN.Tool"/g' scripts/properties.sh
+          sed -i 's/TERMUX_APP__NAMESPACE="com.termux"/TERMUX_APP__NAMESPACE="com.UIN.Tool"/g' scripts/properties.sh
+          
+          # 验证修改
+          grep "com.UIN.Tool" scripts/properties.sh
+      
+      - name: Build bash package
+        run: |
+          export TERMUX_APP_PACKAGE_NAME="com.UIN.Tool"
+          ./build-package.sh -a aarch64 bash
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: debs-com.UIN.Tool
+          path: output/
