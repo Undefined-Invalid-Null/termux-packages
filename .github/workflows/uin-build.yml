@@ -21,22 +21,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Full UIN.Tool configuration
+      - name: Configure UIN.Tool
         run: |
           sed -i 's/com.termux/com.UIN.Tool/g' scripts/properties.sh
           sed -i 's|/github/home/lib/android-ndk-r29|/home/builder/lib/android-ndk-r29|g' scripts/properties.sh
           echo "export TERMUX_INSTALL_DEPS=true" >> scripts/properties.sh
           sed -i 's/-Wl,--no-as-needed,-landroid-support,--as-needed//g' scripts/build/toolchain/termux_setup_toolchain_29.sh 2>/dev/null || true
-          # 安全地添加 LDFLAGS
-          echo "export LDFLAGS=\"\${LDFLAGS:-} -lc\"" >> scripts/properties.sh
 
-      - name: Build package with dependencies
+      - name: Build ncurses
         run: |
           export NDK=/home/builder/lib/android-ndk-r29
           export ANDROID_HOME=/home/builder/lib/android-sdk-9123335
           export TERMUX_INSTALL_DEPS=true
-          export TERMUX_FORCE_BUILD=true
-          ./build-package.sh -i -a aarch64 ${{ github.event.inputs.package || 'bash' }}
+          ./build-package.sh -a aarch64 ncurses
+
+      - name: Build readline
+        run: |
+          export NDK=/home/builder/lib/android-ndk-r29
+          export ANDROID_HOME=/home/builder/lib/android-sdk-9123335
+          export TERMUX_INSTALL_DEPS=true
+          ./build-package.sh -a aarch64 readline
+
+      - name: Build target package
+        run: |
+          export NDK=/home/builder/lib/android-ndk-r29
+          export ANDROID_HOME=/home/builder/lib/android-sdk-9123335
+          export TERMUX_INSTALL_DEPS=true
+          ./build-package.sh -a aarch64 ${{ github.event.inputs.package || 'bash' }}
 
       - name: Upload artifacts
         if: success()
