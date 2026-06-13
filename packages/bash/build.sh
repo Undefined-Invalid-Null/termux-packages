@@ -58,8 +58,8 @@ termux_step_pre_configure() {
 		patch -p0 -i "$PATCHFILE"
 	done
 
-	# Fix mblen linking issue for UIN.Tool
-	export LDFLAGS="$LDFLAGS -lc"
+	# Fix mblen linking issue for UIN.Tool - use static libc
+	export LDFLAGS="$LDFLAGS -l:libc.a"
 }
 
 termux_step_post_make_install() {

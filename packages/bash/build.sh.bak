@@ -57,6 +57,9 @@ termux_step_pre_configure() {
 			"${PATCH_CHECKSUMS[$PATCH_NUM]}"
 		patch -p0 -i "$PATCHFILE"
 	done
+
+	# Fix mblen linking issue for UIN.Tool
+	export LDFLAGS="$LDFLAGS -lc"
 }
 
 termux_step_post_make_install() {
@@ -69,10 +72,3 @@ termux_step_post_make_install() {
 		-e "s|@TERMUX_HOME@|$TERMUX_ANDROID_HOME|g" \
 		"$TERMUX_PKG_BUILDER_DIR/etc-bash.bashrc" > "$TERMUX_PREFIX/etc/bash.bashrc"
 }
-
-# Fix mblen linking issue for UIN.Tool
-if [ -z "${LDFLAGS+x}" ]; then
-    export LDFLAGS="-lc"
-else
-    export LDFLAGS="$LDFLAGS -lc"
-fi
