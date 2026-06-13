@@ -28,13 +28,18 @@ jobs:
           echo "export TERMUX_INSTALL_DEPS=true" >> scripts/properties.sh
           sed -i 's/-Wl,--no-as-needed,-landroid-support,--as-needed//g' scripts/build/toolchain/termux_setup_toolchain_29.sh 2>/dev/null || true
 
-      - name: Build dependencies first
+      - name: Build ncurses
         run: |
           export NDK=/home/builder/lib/android-ndk-r29
           export ANDROID_HOME=/home/builder/lib/android-sdk-9123335
           export TERMUX_INSTALL_DEPS=true
-          
-          # 先构建 readline (bash 的依赖)
+          ./build-package.sh -a aarch64 ncurses
+
+      - name: Build readline
+        run: |
+          export NDK=/home/builder/lib/android-ndk-r29
+          export ANDROID_HOME=/home/builder/lib/android-sdk-9123335
+          export TERMUX_INSTALL_DEPS=true
           ./build-package.sh -a aarch64 readline
 
       - name: Build target package
