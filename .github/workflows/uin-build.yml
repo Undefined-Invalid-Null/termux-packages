@@ -20,15 +20,30 @@ jobs:
 
       - name: Fix configuration
         run: |
+          # 修改包名
           sed -i 's/com.termux/com.UIN.Tool/g' scripts/properties.sh
           sed -i 's|/github/home/lib/android-ndk-r29|/home/builder/lib/android-ndk-r29|g' scripts/properties.sh
-          sed -i 's|/android-ndk|/home/builder/lib/android-ndk-r29|g' scripts/properties.sh
           echo "export TERMUX_INSTALL_DEPS=true" >> scripts/properties.sh
+          
+          # 修复编译器配置
+          echo "export CFLAGS=" >> scripts/properties.sh
+          echo "export CXXFLAGS=" >> scripts/properties.sh
+          echo "export LDFLAGS=" >> scripts/properties.sh
 
       - name: Build
         run: |
           export NDK=/home/builder/lib/android-ndk-r29
           export ANDROID_HOME=/home/builder/lib/android-sdk-9123335
+          export TERMUX_INSTALL_DEPS=true
+          export TERMUX_FORCE_BUILD=true
+          
+          # 设置编译环境
+          export AR=llvm-ar
+          export CC=clang
+          export CXX=clang++
+          export LD=ld.lld
+          export STRIP=llvm-strip
+          
           ./build-package.sh -a ${{ matrix.arch }} bash
 
       - uses: actions/upload-artifact@v4
