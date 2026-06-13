@@ -14,8 +14,9 @@ termux_download_deb_pac() {
 	fi
 	PKG_HASH=""
 
-	# POSIX 兼容的包名检查（不使用 [[ ]]）
+	# 允许从官方仓库下载依赖（包名不同时）
 	if [ "$TERMUX_REPO_APP__PACKAGE_NAME" != "$TERMUX_APP_PACKAGE" ]; then
+		# 如果是 UIN.Tool 且尝试从官方 com.termux 下载，允许通过
 		if [ "$TERMUX_APP_PACKAGE" = "com.UIN.Tool" ] && [ "$TERMUX_REPO_APP__PACKAGE_NAME" = "com.termux" ]; then
 			echo "INFO: Allowing dependency download from official repo ($TERMUX_REPO_APP__PACKAGE_NAME) for custom package ($TERMUX_APP_PACKAGE)"
 		elif [ "${TERMUX_ALLOW_CROSS_REPO_DOWNLOAD:-false}" = "true" ]; then
@@ -110,7 +111,6 @@ termux_download_deb_pac() {
 				"$PKG_HASH"
 }
 
-# Make script standalone executable as well as sourceable
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
 	termux_download_deb_pac "$@"
 fi

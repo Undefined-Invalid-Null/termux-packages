@@ -46,22 +46,37 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Fix NDK permissions
+      - name: Fix NDK and setup environment
         run: |
-          chown -R root:root /github/home/lib/android-ndk-r29 2>/dev/null || true
-          chmod -R 755 /github/home/lib/android-ndk-r29 2>/dev/null || true
-          ls -la /github/home/lib/ || echo "NDK directory check"
+          # 修复 NDK 权限和路径
+          if [ -d "/github/home/lib/android-ndk-r29" ]; then
+            chown -R root:root /github/home/lib/android-ndk-r29
+            chmod -R 755 /github/home/lib/android-ndk-r29
+          fi
+          
+          # 创建 NDK 符号链接（如果不存在）
+          if [ ! -d "/github/home/lib/android-ndk-r29" ] && [ -d "/android-ndk" ]; then
+            ln -sf /android-ndk /github/home/lib/android-ndk-r29
+          fi
+          
+          # 设置 NDK 环境变量
+          echo "NDK=/github/home/lib/android-ndk-r29" >> $GITHUB_ENV
+          echo "ANDROID_HOME=/github/home/lib/android-sdk-9123335" >> $GITHUB_ENV
+          
+          # 验证
+          ls -la /github/home/lib/ || echo "Checking NDK location"
       
       - name: Change package name to com.UIN.Tool
         run: |
-          # 修改包名
+          # 使用 sed 修改包名（POSIX 兼容，不使用 [[ ]]）
           sed -i 's/TERMUX_APP__PACKAGE_NAME="com.termux"/TERMUX_APP__PACKAGE_NAME="com.UIN.Tool"/g' scripts/properties.sh
           sed -i 's/TERMUX_APP__NAMESPACE="com.termux"/TERMUX_APP__NAMESPACE="com.UIN.Tool"/g' scripts/properties.sh
+          sed -i 's/TERMUX_APP_PACKAGE="com.termux"/TERMUX_APP_PACKAGE="com.UIN.Tool"/g' scripts/properties.sh
           
           # 确保仓库包名保持为 com.termux
           sed -i 's/TERMUX_REPO_APP__PACKAGE_NAME="[^"]*"/TERMUX_REPO_APP__PACKAGE_NAME="com.termux"/g' scripts/properties.sh
           
-          # 添加环境变量
+          # 添加环境变量到 properties.sh
           echo "" >> scripts/properties.sh
           echo "# UIN.Tool custom settings" >> scripts/properties.sh
           echo "export TERMUX_ALLOW_CROSS_REPO_DOWNLOAD=true" >> scripts/properties.sh
@@ -73,18 +88,17 @@ jobs:
           grep "TERMUX_REPO_APP__PACKAGE_NAME" scripts/properties.sh
       
       - name: Build package
+        shell: bash
         run: |
           export TERMUX_APP_PACKAGE_NAME="com.UIN.Tool"
           export TERMUX_REPO_APP__PACKAGE_NAME="com.termux"
           export TERMUX_ALLOW_CROSS_REPO_DOWNLOAD=true
           export TERMUX_INSTALL_DEPS=true
+          export NDK=/github/home/lib/android-ndk-r29
+          export ANDROID_HOME=/github/home/lib/android-sdk-9123335
           
           # 获取要构建的包名
-          if [[ -n "${{ github.event.inputs.package }}" ]]; then
-            PACKAGE="${{ github.event.inputs.package }}"
-          else
-            PACKAGE="bash"
-          fi
+          PACKAGE="${{ github.event.inputs.package || 'bash' }}"
           
           echo "Building package: $PACKAGE for arch: ${{ matrix.arch }}"
           ./build-package.sh -a ${{ matrix.arch }} "$PACKAGE"

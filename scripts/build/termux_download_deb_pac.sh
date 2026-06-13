@@ -1,4 +1,8 @@
 #!/usr/bin/bash
+# 在文件开头添加
+export TERMUX_INSTALL_DEPS=true
+export TERMUX_FORCE_BUILD_DEPENDENCIES=false
+export TERMUX_SKIP_DEPCHECK=true  # 跳过依赖检查
 
 termux_download_deb_pac() {
 	local PACKAGE=$1
