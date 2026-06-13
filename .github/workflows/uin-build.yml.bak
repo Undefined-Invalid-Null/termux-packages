@@ -11,9 +11,6 @@ on:
         default: 'bash'
         type: string
 
-env:
-  TERMUX_APP_PACKAGE_NAME: "com.UIN.Tool"
-
 jobs:
   build:
     strategy:
@@ -21,51 +18,52 @@ jobs:
       matrix:
         arch: [aarch64, arm, i686, x86_64]
     runs-on: ubuntu-latest
-    container: 
+    container:
       image: ghcr.io/termux/package-builder
       options: --user root
-    
+
     steps:
-      - uses: actions/checkout@v4
-      
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup environment
         shell: bash
         run: |
-          # 修复 NDK 路径
+          # Fix NDK path
           if [ -d "/android-ndk" ]; then
             mkdir -p /github/home/lib
             ln -sf /android-ndk /github/home/lib/android-ndk-r29
             echo "NDK linked to /github/home/lib/android-ndk-r29"
           fi
           
-          # 验证 NDK
-          ls -la /github/home/lib/ || true
-          
-          # 设置环境变量
+          # Set environment variables
           echo "NDK=/github/home/lib/android-ndk-r29" >> $GITHUB_ENV
           echo "ANDROID_HOME=/github/home/lib/android-sdk-9123335" >> $GITHUB_ENV
-      
-      - name: Apply UIN.Tool patches
+          echo "TERMUX_INSTALL_DEPS=true" >> $GITHUB_ENV
+          echo "TERMUX_SKIP_DEPCHECK=true" >> $GITHUB_ENV
+
+      - name: Apply package name patch
         shell: bash
         run: |
-          # 直接修改 properties.sh
+          # Modify properties.sh
+          sed -i 's/TERMUX_APP__PACKAGE_NAME="com.termux"/TERMUX_APP__PACKAGE_NAME="com.UIN.Tool"/g' scripts/properties.sh
+          sed -i 's/TERMUX_APP__NAMESPACE="com.termux"/TERMUX_APP__NAMESPACE="com.UIN.Tool"/g' scripts/properties.sh
+          sed -i 's/TERMUX_REPO_APP__PACKAGE_NAME="com.termux"/TERMUX_REPO_APP__PACKAGE_NAME="com.UIN.Tool"/g' scripts/properties.sh
+          
+          # Add forced settings
           cat >> scripts/properties.sh << 'EOF'
-
-# UIN.Tool - Override package name
-TERMUX_APP__PACKAGE_NAME="com.UIN.Tool"
-TERMUX_APP__NAMESPACE="com.UIN.Tool"
-TERMUX_REPO_APP__PACKAGE_NAME="com.UIN.Tool"
-TERMUX_APP_PACKAGE="com.UIN.Tool"
-TERMUX_APP__DATA_DIR="/data/data/com.UIN.Tool"
-
-# Force download of dependencies (skip package name check)
-TERMUX_INSTALL_DEPS=true
-TERMUX_FORCE_BUILD_DEPENDENCIES=false
+          
+# UIN.Tool forced settings
+export TERMUX_APP_PACKAGE="com.UIN.Tool"
+export TERMUX_INSTALL_DEPS=true
+export TERMUX_SKIP_DEPCHECK=true
+export TERMUX_FORCE_BUILD_DEPENDENCIES=false
 EOF
           
-          # 验证修改
-          grep -E "TERMUX_(APP|REPO)_" scripts/properties.sh | head -10
-      
+          # Verify
+          echo "=== Modified properties ==="
+          grep "TERMUX.*PACKAGE" scripts/properties.sh | head -5
+
       - name: Build package
         shell: bash
         run: |
@@ -73,19 +71,18 @@ EOF
           export TERMUX_APP_PACKAGE="com.UIN.Tool"
           export TERMUX_REPO_APP__PACKAGE_NAME="com.UIN.Tool"
           export TERMUX_INSTALL_DEPS=true
+          export TERMUX_SKIP_DEPCHECK=true
           
           PACKAGE="${{ github.event.inputs.package || 'bash' }}"
-          echo "Building: $PACKAGE for ${{ matrix.arch }}"
+          ARCH="${{ matrix.arch }}"
           
-          ./build-package.sh -a ${{ matrix.arch }} "$PACKAGE" || {
-            echo "Build failed, trying with -i flag..."
-            ./build-package.sh -a ${{ matrix.arch }} -i "$PACKAGE"
-          }
-      
+          echo "Building: $PACKAGE for $ARCH"
+          ./build-package.sh -a "$ARCH" "$PACKAGE"
+
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: uin-tool-${{ matrix.arch }}
+          name: uin-tool-debs-${{ matrix.arch }}
           path: output/
           retention-days: 7
