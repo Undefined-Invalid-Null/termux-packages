@@ -12,16 +12,11 @@ jobs:
     - name: Change package name
       run: sed -i 's/com.termux/com.UIN.Tool/g' scripts/properties.sh
     
-    - name: Fix NDK path
+    - name: Build with explicit NDK path
       run: |
-        # 创建正确的 NDK 路径符号链接
-        mkdir -p /github/home/lib
-        ln -sf /android-ndk /github/home/lib/android-ndk-r29
-        echo "NDK fixed"
-        ls -la /github/home/lib/
-    
-    - name: Build
-      run: ./build-package.sh -a aarch64 bash
+        export NDK=/android-ndk
+        export ANDROID_HOME=/android-sdk
+        ./build-package.sh -a aarch64 bash
     
     - uses: actions/upload-artifact@v4
       with:
