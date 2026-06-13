@@ -23,20 +23,12 @@ jobs:
 
       - name: Full UIN.Tool configuration
         run: |
-          # 1. 修改包名
           sed -i 's/com.termux/com.UIN.Tool/g' scripts/properties.sh
-          
-          # 2. 修正 NDK 路径
           sed -i 's|/github/home/lib/android-ndk-r29|/home/builder/lib/android-ndk-r29|g' scripts/properties.sh
-          
-          # 3. 启用依赖下载
           echo "export TERMUX_INSTALL_DEPS=true" >> scripts/properties.sh
-          
-          # 4. 移除有问题的链接标志
           sed -i 's/-Wl,--no-as-needed,-landroid-support,--as-needed//g' scripts/build/toolchain/termux_setup_toolchain_29.sh 2>/dev/null || true
-          
-          # 5. 添加 libc 链接解决 mblen 问题
-          echo "export LDFLAGS=\"\$LDFLAGS -lc\"" >> scripts/properties.sh
+          # 安全地添加 LDFLAGS
+          echo "export LDFLAGS=\"\${LDFLAGS:-} -lc\"" >> scripts/properties.sh
 
       - name: Build package with dependencies
         run: |
@@ -44,8 +36,6 @@ jobs:
           export ANDROID_HOME=/home/builder/lib/android-sdk-9123335
           export TERMUX_INSTALL_DEPS=true
           export TERMUX_FORCE_BUILD=true
-          
-          # 使用 -i 标志自动处理所有依赖
           ./build-package.sh -i -a aarch64 ${{ github.event.inputs.package || 'bash' }}
 
       - name: Upload artifacts
