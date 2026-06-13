@@ -9,14 +9,20 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Change package name
-      run: sed -i 's/com.termux/com.UIN.Tool/g' scripts/properties.sh
-    
-    - name: Build with explicit NDK path
+    - name: Fix everything
       run: |
-        export NDK=/android-ndk
-        export ANDROID_HOME=/android-sdk
-        ./build-package.sh -a aarch64 bash
+        # 修改包名
+        sed -i 's/com.termux/com.UIN.Tool/g' scripts/properties.sh
+        
+        # 直接修改 NDK 路径
+        sed -i 's|/github/home/lib/android-ndk-r29|/android-ndk|g' scripts/properties.sh
+        sed -i 's|/github/home/lib/android-sdk-9123335|/android-sdk|g' scripts/properties.sh
+        
+        # 验证修改
+        grep -E "NDK=|ANDROID_HOME=" scripts/properties.sh || true
+    
+    - name: Build
+      run: ./build-package.sh -a aarch64 bash
     
     - uses: actions/upload-artifact@v4
       with:
