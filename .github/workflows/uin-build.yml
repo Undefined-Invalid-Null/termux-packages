@@ -8,7 +8,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: ghcr.io/termux/package-builder
+    container:
+      image: ghcr.io/termux/package-builder
+      options: --user root --privileged
     strategy:
       matrix:
         arch: [aarch64, arm, i686, x86_64]
@@ -18,18 +20,10 @@ jobs:
 
       - name: Fix configuration
         run: |
-          # 修改包名
           sed -i 's/com.termux/com.UIN.Tool/g' scripts/properties.sh
-          
-          # 设置正确的 NDK 路径
           sed -i 's|/github/home/lib/android-ndk-r29|/home/builder/lib/android-ndk-r29|g' scripts/properties.sh
           sed -i 's|/android-ndk|/home/builder/lib/android-ndk-r29|g' scripts/properties.sh
-          
-          # 强制启用依赖下载
           echo "export TERMUX_INSTALL_DEPS=true" >> scripts/properties.sh
-          
-          # 验证修改
-          grep "NDK" scripts/properties.sh | head -3
 
       - name: Build
         run: |
