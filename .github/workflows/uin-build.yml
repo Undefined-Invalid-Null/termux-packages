@@ -11,34 +11,37 @@ jobs:
     container:
       image: ghcr.io/termux/package-builder
       options: --user root --privileged
+    strategy:
+      matrix:
+        arch: [aarch64, arm, i686, x86_64]
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure
+      - name: Full UIN.Tool setup
         run: |
+          # 修改包名
           sed -i 's/com.termux/com.UIN.Tool/g' scripts/properties.sh
           sed -i 's|/github/home/lib/android-ndk-r29|/home/builder/lib/android-ndk-r29|g' scripts/properties.sh
+          
+          # 启用依赖下载
           echo "export TERMUX_INSTALL_DEPS=true" >> scripts/properties.sh
+          echo "export TERMUX_FORCE_BUILD=true" >> scripts/properties.sh
+          
+          # 修复 libandroid-support 链接问题
+          sed -i 's/-Wl,--no-as-needed,-landroid-support,--as-needed//g' scripts/build/toolchain/termux_setup_toolchain_29.sh
+          
+          # 设置正确的库路径
+          echo "export LDFLAGS=\"-L/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android\"" >> scripts/properties.sh
 
       - name: Build
         run: |
           export NDK=/home/builder/lib/android-ndk-r29
           export ANDROID_HOME=/home/builder/lib/android-sdk-9123335
           export TERMUX_INSTALL_DEPS=true
-          ./build-package.sh -a aarch64 bash || true
+          ./build-package.sh -a ${{ matrix.arch }} bash
 
-      - name: Upload config.log
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: config-log
-          path: |
-            /home/builder/.termux-build/bash/src/config.log
-            /github/home/.termux-build/bash/src/config.log
-          retention-days: 7
-
-      - name: Show config.log
-        run: |
-          echo "=== config.log content ==="
-          cat /home/builder/.termux-build/bash/src/config.log 2>/dev/null || echo "Not found in /home/builder"
-          cat /github/home/.termux-build/bash/src/config.log 2>/dev/null || echo "Not found in /github/home"
+          name: uin-tool-${{ matrix.arch }}
+          path: output/
