@@ -1,4 +1,4 @@
-name: UIN.Tool Build
+name: UIN.Tool Build (Debug)
 
 on:
   push:
@@ -15,30 +15,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup UIN.Tool environment
+      - name: Setup environment
         run: |
-          # 修改包名
           sed -i 's/com.termux/com.UIN.Tool/g' scripts/properties.sh
-          
-          # 修正 NDK 路径
           sed -i 's|/github/home/lib/android-ndk-r29|/home/builder/lib/android-ndk-r29|g' scripts/properties.sh
-          
-          # 启用依赖下载
           echo "export TERMUX_INSTALL_DEPS=true" >> scripts/properties.sh
-          
-          # 设置正确的环境变量
-          echo "export PATH=/home/builder/lib/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/bin:\$PATH" >> scripts/properties.sh
 
-      - name: Build bash for aarch64
+      - name: Build with debug
         run: |
           export NDK=/home/builder/lib/android-ndk-r29
           export ANDROID_HOME=/home/builder/lib/android-sdk-9123335
           export TERMUX_INSTALL_DEPS=true
-          ./build-package.sh -a aarch64 bash
+          ./build-package.sh -a aarch64 bash 2>&1 | tee build.log
+
+      - name: Upload config.log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-logs
+          path: |
+            /github/home/.termux-build/bash/src/config.log
+            build.log
+            /github/home/.termux-build/bash/src/config.status
+          retention-days: 7
 
       - name: Upload artifacts
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: uin-tool-bash-aarch64
+          name: debs
           path: output/
