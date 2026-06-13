@@ -2,60 +2,99 @@ name: UIN.Tool Build
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
   workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package to build'
+        required: false
+        default: 'bash'
+        type: string
+      arch:
+        description: 'Architecture'
+        required: false
+        default: 'aarch64'
+        type: choice
+        options:
+          - aarch64
+          - arm
+          - i686
+          - x86_64
+
+env:
+  TERMUX_APP_PACKAGE_NAME: "com.UIN.Tool"
+  TERMUX_REPO_APP__PACKAGE_NAME: "com.termux"
+  TERMUX_ALLOW_CROSS_REPO_DOWNLOAD: "true"
+  TERMUX_INSTALL_DEPS: "true"
 
 jobs:
   build:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [aarch64, arm, i686, x86_64]
     runs-on: ubuntu-latest
-    container: ghcr.io/termux/package-builder
+    container: 
+      image: ghcr.io/termux/package-builder
+      options: --user root
     
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       
-      - name: Setup Android NDK
+      - name: Fix NDK permissions
         run: |
-          # 设置 NDK 环境变量
-          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "NDK=$NDK" >> $GITHUB_ENV
-          # 验证 NDK 存在
-          ls -la $NDK || echo "NDK not found at $NDK"
+          chown -R root:root /github/home/lib/android-ndk-r29 2>/dev/null || true
+          chmod -R 755 /github/home/lib/android-ndk-r29 2>/dev/null || true
+          ls -la /github/home/lib/ || echo "NDK directory check"
       
       - name: Change package name to com.UIN.Tool
         run: |
+          # 修改包名
           sed -i 's/TERMUX_APP__PACKAGE_NAME="com.termux"/TERMUX_APP__PACKAGE_NAME="com.UIN.Tool"/g' scripts/properties.sh
           sed -i 's/TERMUX_APP__NAMESPACE="com.termux"/TERMUX_APP__NAMESPACE="com.UIN.Tool"/g' scripts/properties.sh
           
-          # 重要：允许从官方仓库下载依赖
-          sed -i 's/TERMUX_REPO_APP__PACKAGE_NAME="com.termux"/TERMUX_REPO_APP__PACKAGE_NAME="com.termux"/g' scripts/properties.sh
+          # 确保仓库包名保持为 com.termux
+          sed -i 's/TERMUX_REPO_APP__PACKAGE_NAME="[^"]*"/TERMUX_REPO_APP__PACKAGE_NAME="com.termux"/g' scripts/properties.sh
           
-          # 添加跳过包名检查的配置
+          # 添加环境变量
+          echo "" >> scripts/properties.sh
+          echo "# UIN.Tool custom settings" >> scripts/properties.sh
+          echo "export TERMUX_ALLOW_CROSS_REPO_DOWNLOAD=true" >> scripts/properties.sh
           echo "export TERMUX_INSTALL_DEPS=true" >> scripts/properties.sh
-          echo "export TERMUX_WITHOUT_DEPVERSION_BINDING=true" >> scripts/properties.sh
           
           # 验证修改
-          grep "com.UIN.Tool" scripts/properties.sh
-          grep "com.termux" scripts/properties.sh
+          echo "=== Modified properties ==="
+          grep "TERMUX_APP__PACKAGE_NAME" scripts/properties.sh
+          grep "TERMUX_REPO_APP__PACKAGE_NAME" scripts/properties.sh
       
-      - name: Build bash package
+      - name: Build package
         run: |
-          # 设置环境变量绕过包名检查
           export TERMUX_APP_PACKAGE_NAME="com.UIN.Tool"
           export TERMUX_REPO_APP__PACKAGE_NAME="com.termux"
+          export TERMUX_ALLOW_CROSS_REPO_DOWNLOAD=true
           export TERMUX_INSTALL_DEPS=true
-          export TERMUX_WITHOUT_DEPVERSION_BINDING=true
-          export TERMUX_ON_DEVICE_BUILD=false
           
-          # 手动设置 NDK 路径
-          export ANDROID_HOME=/github/home/lib/android-sdk-9123335
-          export NDK=/github/home/lib/android-ndk-r29
+          # 获取要构建的包名
+          if [[ -n "${{ github.event.inputs.package }}" ]]; then
+            PACKAGE="${{ github.event.inputs.package }}"
+          else
+            PACKAGE="bash"
+          fi
           
-          # 构建
-          ./build-package.sh -a aarch64 bash
+          echo "Building package: $PACKAGE for arch: ${{ matrix.arch }}"
+          ./build-package.sh -a ${{ matrix.arch }} "$PACKAGE"
       
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: debs-com.UIN.Tool
-          path: output/
+          name: uin-tool-debs-${{ matrix.arch }}
+          path: |
+            output/*.deb
+            output/*.pkg.tar.*
+          retention-days: 7

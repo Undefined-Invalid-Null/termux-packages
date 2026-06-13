@@ -17,9 +17,9 @@ termux_download_deb_pac() {
 	# 允许从官方仓库下载依赖（包名不同时）
 	if [ "$TERMUX_REPO_APP__PACKAGE_NAME" != "$TERMUX_APP_PACKAGE" ]; then
 		# 如果是 UIN.Tool 且尝试从官方 com.termux 下载，允许通过
-		if [[ "$TERMUX_APP_PACKAGE" == "com.UIN.Tool" ]] && [[ "$TERMUX_REPO_APP__PACKAGE_NAME" == "com.termux" ]]; then
+		if [ "$TERMUX_APP_PACKAGE" = "com.UIN.Tool" ] && [ "$TERMUX_REPO_APP__PACKAGE_NAME" = "com.termux" ]; then
 			echo "INFO: Allowing dependency download from official repo ($TERMUX_REPO_APP__PACKAGE_NAME) for custom package ($TERMUX_APP_PACKAGE)"
-		elif [[ "${TERMUX_ALLOW_CROSS_REPO_DOWNLOAD:-false}" == "true" ]]; then
+		elif [ "${TERMUX_ALLOW_CROSS_REPO_DOWNLOAD:-false}" = "true" ]; then
 			echo "INFO: Cross-repo download allowed via TERMUX_ALLOW_CROSS_REPO_DOWNLOAD"
 		else
 			echo "Ignoring download of $PKG_FILE since repo package name ($TERMUX_REPO_APP__PACKAGE_NAME) does not equal app package name ($TERMUX_APP_PACKAGE)"
@@ -60,11 +60,6 @@ termux_download_deb_pac() {
 			done
 		elif [ ! -f "${TERMUX_COMMON_CACHEDIR}-${PACKAGE_ARCH}/${PACKAGE_FILE_PATH}" ] && \
 			[ -f "${TERMUX_COMMON_CACHEDIR}-aarch64/${PACKAGE_FILE_PATH}" ]; then
-			# Packages file for $PACKAGE_ARCH did not
-			# exist. Could be an aptly mirror where the
-			# all arch is mixed into the other arches,
-			# check for package in aarch64 Packages
-			# instead.
 			if [ "$TERMUX_REPO_PKG_FORMAT" = "debian" ]; then
 				read -rd "\n" PKG_PATH PKG_HASH < <(./scripts/get_hash_from_file.py "${TERMUX_COMMON_CACHEDIR}-aarch64/$PACKAGE_FILE_PATH" "$PACKAGE" "$VERSION")
 			elif [ "$TERMUX_REPO_PKG_FORMAT" = "pacman" ]; then
@@ -116,7 +111,6 @@ termux_download_deb_pac() {
 				"$PKG_HASH"
 }
 
-# Make script standalone executable as well as sourceable
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
 	termux_download_deb_pac "$@"
 fi
