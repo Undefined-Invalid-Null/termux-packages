@@ -1,0 +1,61 @@
+name: UIN.Tool Build
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: ghcr.io/termux/package-builder
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Android NDK
+        run: |
+          # 设置 NDK 环境变量
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "NDK=$NDK" >> $GITHUB_ENV
+          # 验证 NDK 存在
+          ls -la $NDK || echo "NDK not found at $NDK"
+      
+      - name: Change package name to com.UIN.Tool
+        run: |
+          sed -i 's/TERMUX_APP__PACKAGE_NAME="com.termux"/TERMUX_APP__PACKAGE_NAME="com.UIN.Tool"/g' scripts/properties.sh
+          sed -i 's/TERMUX_APP__NAMESPACE="com.termux"/TERMUX_APP__NAMESPACE="com.UIN.Tool"/g' scripts/properties.sh
+          
+          # 重要：允许从官方仓库下载依赖
+          sed -i 's/TERMUX_REPO_APP__PACKAGE_NAME="com.termux"/TERMUX_REPO_APP__PACKAGE_NAME="com.termux"/g' scripts/properties.sh
+          
+          # 添加跳过包名检查的配置
+          echo "export TERMUX_INSTALL_DEPS=true" >> scripts/properties.sh
+          echo "export TERMUX_WITHOUT_DEPVERSION_BINDING=true" >> scripts/properties.sh
+          
+          # 验证修改
+          grep "com.UIN.Tool" scripts/properties.sh
+          grep "com.termux" scripts/properties.sh
+      
+      - name: Build bash package
+        run: |
+          # 设置环境变量绕过包名检查
+          export TERMUX_APP_PACKAGE_NAME="com.UIN.Tool"
+          export TERMUX_REPO_APP__PACKAGE_NAME="com.termux"
+          export TERMUX_INSTALL_DEPS=true
+          export TERMUX_WITHOUT_DEPVERSION_BINDING=true
+          export TERMUX_ON_DEVICE_BUILD=false
+          
+          # 手动设置 NDK 路径
+          export ANDROID_HOME=/github/home/lib/android-sdk-9123335
+          export NDK=/github/home/lib/android-ndk-r29
+          
+          # 构建
+          ./build-package.sh -a aarch64 bash
+      
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debs-com.UIN.Tool
+          path: output/

@@ -2,32 +2,99 @@ name: UIN.Tool Build
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
   workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package to build'
+        required: false
+        default: 'bash'
+        type: string
+      arch:
+        description: 'Architecture'
+        required: false
+        default: 'aarch64'
+        type: choice
+        options:
+          - aarch64
+          - arm
+          - i686
+          - x86_64
+
+env:
+  TERMUX_APP_PACKAGE_NAME: "com.UIN.Tool"
+  TERMUX_REPO_APP__PACKAGE_NAME: "com.termux"
+  TERMUX_ALLOW_CROSS_REPO_DOWNLOAD: "true"
+  TERMUX_INSTALL_DEPS: "true"
 
 jobs:
   build:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [aarch64, arm, i686, x86_64]
     runs-on: ubuntu-latest
-    container: ghcr.io/termux/package-builder
+    container: 
+      image: ghcr.io/termux/package-builder
+      options: --user root
     
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Fix NDK permissions
+        run: |
+          chown -R root:root /github/home/lib/android-ndk-r29 2>/dev/null || true
+          chmod -R 755 /github/home/lib/android-ndk-r29 2>/dev/null || true
+          ls -la /github/home/lib/ || echo "NDK directory check"
       
       - name: Change package name to com.UIN.Tool
         run: |
+          # 修改包名
           sed -i 's/TERMUX_APP__PACKAGE_NAME="com.termux"/TERMUX_APP__PACKAGE_NAME="com.UIN.Tool"/g' scripts/properties.sh
           sed -i 's/TERMUX_APP__NAMESPACE="com.termux"/TERMUX_APP__NAMESPACE="com.UIN.Tool"/g' scripts/properties.sh
           
+          # 确保仓库包名保持为 com.termux
+          sed -i 's/TERMUX_REPO_APP__PACKAGE_NAME="[^"]*"/TERMUX_REPO_APP__PACKAGE_NAME="com.termux"/g' scripts/properties.sh
+          
+          # 添加环境变量
+          echo "" >> scripts/properties.sh
+          echo "# UIN.Tool custom settings" >> scripts/properties.sh
+          echo "export TERMUX_ALLOW_CROSS_REPO_DOWNLOAD=true" >> scripts/properties.sh
+          echo "export TERMUX_INSTALL_DEPS=true" >> scripts/properties.sh
+          
           # 验证修改
-          grep "com.UIN.Tool" scripts/properties.sh
+          echo "=== Modified properties ==="
+          grep "TERMUX_APP__PACKAGE_NAME" scripts/properties.sh
+          grep "TERMUX_REPO_APP__PACKAGE_NAME" scripts/properties.sh
       
-      - name: Build bash package
+      - name: Build package
         run: |
           export TERMUX_APP_PACKAGE_NAME="com.UIN.Tool"
-          ./build-package.sh -a aarch64 bash
+          export TERMUX_REPO_APP__PACKAGE_NAME="com.termux"
+          export TERMUX_ALLOW_CROSS_REPO_DOWNLOAD=true
+          export TERMUX_INSTALL_DEPS=true
+          
+          # 获取要构建的包名
+          if [[ -n "${{ github.event.inputs.package }}" ]]; then
+            PACKAGE="${{ github.event.inputs.package }}"
+          else
+            PACKAGE="bash"
+          fi
+          
+          echo "Building package: $PACKAGE for arch: ${{ matrix.arch }}"
+          ./build-package.sh -a ${{ matrix.arch }} "$PACKAGE"
       
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: debs-com.UIN.Tool
-          path: output/
+          name: uin-tool-debs-${{ matrix.arch }}
+          path: |
+            output/*.deb
+            output/*.pkg.tar.*
+          retention-days: 7
