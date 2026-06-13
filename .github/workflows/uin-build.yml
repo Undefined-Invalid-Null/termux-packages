@@ -13,40 +13,25 @@ jobs:
       options: --user root --privileged
     strategy:
       matrix:
-        arch: [aarch64, arm, i686, x86_64]
+        arch: [aarch64]  # 只构建 aarch64
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Fix configuration
         run: |
-          # 修改包名
           sed -i 's/com.termux/com.UIN.Tool/g' scripts/properties.sh
           sed -i 's|/github/home/lib/android-ndk-r29|/home/builder/lib/android-ndk-r29|g' scripts/properties.sh
           echo "export TERMUX_INSTALL_DEPS=true" >> scripts/properties.sh
-          
-          # 修复编译器配置
-          echo "export CFLAGS=" >> scripts/properties.sh
-          echo "export CXXFLAGS=" >> scripts/properties.sh
-          echo "export LDFLAGS=" >> scripts/properties.sh
+          echo "export TERMUX_FORCE_BUILD=true" >> scripts/properties.sh
 
       - name: Build
         run: |
           export NDK=/home/builder/lib/android-ndk-r29
           export ANDROID_HOME=/home/builder/lib/android-sdk-9123335
-          export TERMUX_INSTALL_DEPS=true
-          export TERMUX_FORCE_BUILD=true
-          
-          # 设置编译环境
-          export AR=llvm-ar
-          export CC=clang
-          export CXX=clang++
-          export LD=ld.lld
-          export STRIP=llvm-strip
-          
-          ./build-package.sh -a ${{ matrix.arch }} bash
+          ./build-package.sh -a aarch64 bash
 
       - uses: actions/upload-artifact@v4
         with:
-          name: uin-tool-debs-${{ matrix.arch }}
+          name: uin-tool-debs-aarch64
           path: output/
