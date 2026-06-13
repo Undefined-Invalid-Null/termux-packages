@@ -2,139 +2,62 @@ name: UIN.Tool Build
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [ master ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/termux/package-builder
-      options: --user root
-
+    container: ghcr.io/termux/package-builder
     strategy:
-      fail-fast: false
       matrix:
         arch: [aarch64, arm, i686, x86_64]
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
 
-      - name: Debug - Check container environment
+      - name: Debug - Find actual NDK location
         run: |
-          echo "=== Current user ==="
-          whoami
-          echo "=== Current directory ==="
-          pwd
-          echo "=== List root directories ==="
-          ls -la /
-          echo "=== Home directory ==="
-          ls -la /github/home/ 2>/dev/null || echo "No /github/home"
-          echo "=== Environment variables ==="
-          env | sort
+          echo "=== Finding NDK ==="
+          find / -type d -name "android-ndk*" 2>/dev/null | head -10
+          echo "=== Finding NDK by common paths ==="
+          ls -la /opt/ 2>/dev/null || echo "No /opt"
+          ls -la /usr/local/ 2>/dev/null || echo "No /usr/local"
+          ls -la /github/home/lib/ 2>/dev/null || echo "No /github/home/lib"
+          echo "=== NDK environment variable ==="
+          echo "NDK=$NDK"
+          echo "=== Check if NDK is set in container ==="
+          env | grep -i ndk
 
-      - name: Debug - Find NDK location
+      - name: Fix package name and NDK
         run: |
-          echo "=== Searching for NDK ==="
-          find / -name "android-ndk*" -type d 2>/dev/null | head -10
-          echo "=== Checking common NDK paths ==="
-          test -d /android-ndk && echo "FOUND: /android-ndk" || echo "NOT FOUND: /android-ndk"
-          test -d /github/home/lib/android-ndk-r29 && echo "FOUND: /github/home/lib/android-ndk-r29" || echo "NOT FOUND: /github/home/lib/android-ndk-r29"
-          test -d /opt/android-ndk && echo "FOUND: /opt/android-ndk" || echo "NOT FOUND: /opt/android-ndk"
-
-      - name: Debug - Find Android SDK
-        run: |
-          echo "=== Searching for Android SDK ==="
-          find / -name "android-sdk*" -type d 2>/dev/null | head -10
-          test -d /android-sdk && echo "FOUND: /android-sdk" || echo "NOT FOUND: /android-sdk"
-          test -d /github/home/lib/android-sdk-9123335 && echo "FOUND: /github/home/lib/android-sdk-9123335" || echo "NOT FOUND: /github/home/lib/android-sdk-9123335"
-
-      - name: Debug - Check original properties.sh
-        run: |
-          echo "=== Original TERMUX variables ==="
-          grep -E "^(export )?TERMUX_(APP|REPO)?" scripts/properties.sh | head -20
-          echo "=== NDK related lines ==="
-          grep -n "NDK" scripts/properties.sh | head -10
-
-      - name: Fix - Change package name to com.UIN.Tool
-        run: |
-          echo "=== Changing package name ==="
-          cp scripts/properties.sh scripts/properties.sh.bak
-          sed -i 's/TERMUX_APP__PACKAGE_NAME="com.termux"/TERMUX_APP__PACKAGE_NAME="com.UIN.Tool"/g' scripts/properties.sh
-          sed -i 's/TERMUX_APP__NAMESPACE="com.termux"/TERMUX_APP__NAMESPACE="com.UIN.Tool"/g' scripts/properties.sh
-          sed -i 's/TERMUX_APP_PACKAGE="com.termux"/TERMUX_APP_PACKAGE="com.UIN.Tool"/g' scripts/properties.sh
-          sed -i 's/TERMUX_REPO_APP__PACKAGE_NAME="com.termux"/TERMUX_REPO_APP__PACKAGE_NAME="com.UIN.Tool"/g' scripts/properties.sh
-          echo "=== Modified package name lines ==="
-          grep "TERMUX.*PACKAGE" scripts/properties.sh | grep "com."
-
-      - name: Fix - Fix NDK path in properties.sh
-        run: |
-          echo "=== Fixing NDK path ==="
-          if [ -d "/android-ndk" ]; then
-            NDK_PATH="/android-ndk"
+          # 修改包名
+          sed -i 's/com.termux/com.UIN.Tool/g' scripts/properties.sh
+          
+          # 查找实际的 NDK 路径
+          if [ -d "/github/home/lib/android-ndk-r29" ]; then
+            REAL_NDK="/github/home/lib/android-ndk-r29"
           elif [ -d "/opt/android-ndk" ]; then
-            NDK_PATH="/opt/android-ndk"
+            REAL_NDK="/opt/android-ndk"
+          elif [ -d "/android-ndk" ]; then
+            REAL_NDK="/android-ndk"
           else
-            NDK_PATH="/github/home/lib/android-ndk-r29"
+            # 在容器中搜索
+            REAL_NDK=$(find / -type d -name "android-ndk*" 2>/dev/null | head -1)
           fi
-          echo "Using NDK_PATH: $NDK_PATH"
-          sed -i "s|/github/home/lib/android-ndk-r29|$NDK_PATH|g" scripts/properties.sh
-          sed -i "s|/github/home/lib/android-sdk-9123335|/android-sdk|g" scripts/properties.sh
-
-      - name: Fix - Add forced build settings
-        run: |
-          echo "=== Adding forced build settings ==="
-          echo "" >> scripts/properties.sh
-          echo "# UIN.Tool forced build settings" >> scripts/properties.sh
+          
+          echo "Real NDK path: $REAL_NDK"
+          
+          # 修改 NDK 路径
+          sed -i "s|/android-ndk|$REAL_NDK|g" scripts/properties.sh
+          sed -i "s|/github/home/lib/android-ndk-r29|$REAL_NDK|g" scripts/properties.sh
+          
           echo "export TERMUX_INSTALL_DEPS=true" >> scripts/properties.sh
-          echo "export TERMUX_FORCE_BUILD_DEPENDENCIES=false" >> scripts/properties.sh
-          echo "export TERMUX_SKIP_DEPCHECK=true" >> scripts/properties.sh
-          echo "export TERMUX_WITHOUT_DEPVERSION_BINDING=true" >> scripts/properties.sh
 
-      - name: Fix - Create NDK symlink
-        run: |
-          echo "=== Creating NDK symlink ==="
-          mkdir -p /github/home/lib
-          if [ -d "/android-ndk" ] && [ ! -d "/github/home/lib/android-ndk-r29" ]; then
-            ln -sf /android-ndk /github/home/lib/android-ndk-r29
-            echo "Created symlink"
-          fi
-          ls -la /github/home/lib/ 2>/dev/null || echo "Cannot list"
-
-      - name: Debug - Verify final properties.sh
-        run: |
-          echo "=== Final TERMUX variables ==="
-          grep -E "^(export )?TERMUX_" scripts/properties.sh | grep -v "^#" | head -30
-
-      - name: Build package
+      - name: Build
         run: ./build-package.sh -a ${{ matrix.arch }} bash
-        env:
-          TERMUX_APP_PACKAGE_NAME: com.UIN.Tool
-          TERMUX_APP_PACKAGE: com.UIN.Tool
-          TERMUX_REPO_APP__PACKAGE_NAME: com.UIN.Tool
-          TERMUX_INSTALL_DEPS: true
-          TERMUX_SKIP_DEPCHECK: true
-          TERMUX_FORCE_BUILD_DEPENDENCIES: false
-          NDK: /android-ndk
-          ANDROID_HOME: /android-sdk
 
-      - name: Upload artifacts
-        if: success()
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: uin-tool-debs-${{ matrix.arch }}
           path: output/
-          retention-days: 7
-
-      - name: Upload debug logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-logs-${{ matrix.arch }}
-          path: |
-            scripts/properties.sh
-            output/
-          retention-days: 3
